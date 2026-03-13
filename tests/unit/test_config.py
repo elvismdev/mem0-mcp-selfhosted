@@ -733,3 +733,108 @@ class TestBuildConfig:
         assert config_dict["embedder"]["config"]["ollama_base_url"] == "http://192.168.0.208:11434"
         assert config_dict["graph_store"]["llm"]["provider"] == "ollama"
         assert config_dict["graph_store"]["llm"]["config"]["ollama_base_url"] == "http://192.168.0.208:11434"
+
+    # --- OpenAI provider (15.x) ---
+
+    def test_openai_llm_provider(self):
+        """OpenAI provider sets correct config fields."""
+        env = {
+            "MEM0_LLM_PROVIDER": "openai",
+            "MEM0_LLM_MODEL": "qwen3-14b",
+            "MEM0_LLM_URL": "http://192.168.200.83:1234/v1",
+        }
+        config_dict, *_ = self._build_with_env(env)
+        llm = config_dict["llm"]
+        assert llm["provider"] == "openai"
+        assert llm["config"]["model"] == "qwen3-14b"
+        assert llm["config"]["openai_base_url"] == "http://192.168.200.83:1234/v1"
+        assert llm["config"]["api_key"] == "not-needed"
+
+    def test_openai_llm_provider_no_url(self):
+        """openai_base_url absent when MEM0_LLM_URL not set."""
+        env = {
+            "MEM0_LLM_PROVIDER": "openai",
+            "MEM0_LLM_MODEL": "qwen3-14b",
+        }
+        config_dict, *_ = self._build_with_env(env)
+        assert "openai_base_url" not in config_dict["llm"]["config"]
+
+    def test_openai_llm_model_required(self):
+        """MEM0_LLM_MODEL is required for openai provider."""
+        env = {"MEM0_LLM_PROVIDER": "openai"}
+        leak_keys = [k for k in os.environ if k.startswith("MEM0_")]
+        with patch.dict("os.environ", env, clear=False) as patched_env:
+            for k in leak_keys:
+                if k not in env:
+                    patched_env.pop(k, None)
+            with patch("mem0_mcp_selfhosted.config.resolve_token", return_value="sk-test"):
+                from mem0_mcp_selfhosted.config import build_config
+                with pytest.raises(ValueError, match="MEM0_LLM_MODEL is required"):
+                    build_config()
+
+    def test_openai_llm_custom_api_key(self):
+        """MEM0_OPENAI_API_KEY is used when set."""
+        env = {
+            "MEM0_LLM_PROVIDER": "openai",
+            "MEM0_LLM_MODEL": "qwen3-14b",
+            "MEM0_OPENAI_API_KEY": "lm-studio",
+        }
+        config_dict, *_ = self._build_with_env(env)
+        assert config_dict["llm"]["config"]["api_key"] == "lm-studio"
+
+    def test_openai_graph_llm_provider(self):
+        """OpenAI graph LLM provider sets correct config."""
+        env = {
+            "MEM0_LLM_PROVIDER": "openai",
+            "MEM0_LLM_MODEL": "qwen3-14b",
+            "MEM0_ENABLE_GRAPH": "true",
+            "MEM0_GRAPH_LLM_PROVIDER": "openai",
+            "MEM0_GRAPH_LLM_URL": "http://192.168.200.83:1234/v1",
+            "MEM0_OPENAI_API_KEY": "not-needed",
+        }
+        config_dict, *_ = self._build_with_env(env)
+        graph_llm = config_dict["graph_store"]["llm"]
+        assert graph_llm["provider"] == "openai"
+        assert graph_llm["config"]["openai_base_url"] == "http://192.168.200.83:1234/v1"
+        assert graph_llm["config"]["api_key"] == "not-needed"
+
+    def test_openai_embed_provider(self):
+        """OpenAI embed provider sets correct config fields."""
+        env = {
+            "MEM0_EMBED_PROVIDER": "openai",
+            "MEM0_EMBED_MODEL": "text-embedding-nomic-embed-text-v1.5",
+            "MEM0_EMBED_URL": "http://192.168.200.83:1234/v1",
+        }
+        config_dict, *_ = self._build_with_env(env)
+        embedder = config_dict["embedder"]
+        assert embedder["provider"] == "openai"
+        assert embedder["config"]["openai_base_url"] == "http://192.168.200.83:1234/v1"
+        assert embedder["config"]["api_key"] == "not-needed"
+
+    def test_openai_registered_as_compat_provider(self):
+        """openai provider registers OpenAICompatLLM to strip unsupported json_object response_format."""
+        env = {
+            "MEM0_LLM_PROVIDER": "openai",
+            "MEM0_LLM_MODEL": "qwen3-14b",
+        }
+        _, providers_info, _ = self._build_with_env(env)
+        openai_pi = next((pi for pi in providers_info if pi["name"] == "openai"), None)
+        assert openai_pi is not None
+        assert "OpenAICompatLLM" in openai_pi["class_path"]
+
+    def test_openai_split_contradiction_base_url_in_split_config(self):
+        """OpenAI contradiction URL is stored as contradiction_openai_base_url in split_config."""
+        env = {
+            "MEM0_LLM_PROVIDER": "ollama",
+            "MEM0_ENABLE_GRAPH": "true",
+            "MEM0_GRAPH_LLM_PROVIDER": "gemini_split",
+            "GOOGLE_API_KEY": "test-gemini-key",
+            "MEM0_GRAPH_CONTRADICTION_LLM_PROVIDER": "openai",
+            "MEM0_GRAPH_LLM_URL": "http://192.168.200.83:1234/v1",
+            "MEM0_OPENAI_API_KEY": "lm-studio",
+        }
+        _, _, split_config = self._build_with_env(env)
+        assert split_config is not None
+        assert split_config["contradiction_provider"] == "openai"
+        assert split_config["contradiction_openai_base_url"] == "http://192.168.200.83:1234/v1"
+        assert split_config["contradiction_api_key"] == "lm-studio"

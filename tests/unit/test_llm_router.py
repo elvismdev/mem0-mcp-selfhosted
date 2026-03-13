@@ -148,3 +148,28 @@ class TestSplitModelGraphLLM:
         result = router.generate_response(messages=[{"role": "user", "content": "test"}], tools=tools)
 
         assert result is CONTRADICTION_RESPONSE
+
+    def test_contradiction_openai_base_url_passed_to_factory(self):
+        """contradiction_openai_base_url is forwarded to LlmFactory.create() for the contradiction LLM."""
+        with patch("mem0_mcp_selfhosted.llm_router.LlmFactory") as mock_factory:
+            mock_factory.create.return_value = MagicMock()
+
+            from mem0_mcp_selfhosted.llm_router import SplitModelGraphLLM, SplitModelGraphLLMConfig
+
+            config = SplitModelGraphLLMConfig(
+                extraction_provider="gemini",
+                extraction_model="gemini-2.5-flash-lite",
+                contradiction_provider="openai",
+                contradiction_model="qwen3-14b",
+                contradiction_openai_base_url="http://192.168.200.83:1234/v1",
+            )
+            SplitModelGraphLLM(config)
+
+            # Find the call for the contradiction LLM (provider="openai")
+            openai_calls = [
+                call for call in mock_factory.create.call_args_list
+                if call.args[0] == "openai"
+            ]
+            assert len(openai_calls) == 1
+            _, contradiction_config = openai_calls[0].args
+            assert contradiction_config["openai_base_url"] == "http://192.168.200.83:1234/v1"

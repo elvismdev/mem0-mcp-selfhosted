@@ -344,6 +344,13 @@ class TestResolveConfigClass:
         result = server_mod._resolve_config_class("anthropic")
         assert result is AnthropicOATConfig
 
+    def test_openai_returns_config(self):
+        """openai resolves to OpenAIConfig."""
+        from mem0.configs.llms.openai import OpenAIConfig
+
+        result = server_mod._resolve_config_class("openai")
+        assert result is OpenAIConfig
+
     def test_unknown_returns_none(self):
         """Unknown provider returns None."""
         assert server_mod._resolve_config_class("unknown") is None

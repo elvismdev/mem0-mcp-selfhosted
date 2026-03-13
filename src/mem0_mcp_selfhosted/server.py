@@ -83,6 +83,10 @@ def _resolve_config_class(provider_name: str) -> type | None:
         from mem0_mcp_selfhosted.llm_anthropic import AnthropicOATConfig
 
         return AnthropicOATConfig
+    if provider_name == "openai":
+        from mem0.configs.llms.openai import OpenAIConfig
+
+        return OpenAIConfig
     return None
 
 

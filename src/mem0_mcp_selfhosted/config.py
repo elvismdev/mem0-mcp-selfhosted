@@ -45,7 +45,7 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
 
     # --- Top-level provider default (cascades to LLM and graph LLM) ---
     _provider_default = env("MEM0_PROVIDER", "anthropic")
-    _supported_llm_providers = ("anthropic", "ollama")
+    _supported_llm_providers = ("anthropic", "ollama", "openai")
     if _provider_default not in _supported_llm_providers:
         raise ValueError(
             f"Unsupported MEM0_PROVIDER={_provider_default!r}. "
@@ -60,8 +60,10 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
             f"Supported: {list(_supported_llm_providers)}"
         )
 
-    _llm_model_defaults = {"anthropic": "claude-opus-4-6", "ollama": "qwen3:14b"}
+    _llm_model_defaults = {"anthropic": "claude-opus-4-6", "ollama": "qwen3:14b", "openai": ""}
     llm_model = env("MEM0_LLM_MODEL", _llm_model_defaults[llm_provider])
+    if llm_provider == "openai" and not llm_model:
+        raise ValueError("MEM0_LLM_MODEL is required for the 'openai' provider (e.g. 'qwen3-14b')")
     llm_max_tokens = int(env("MEM0_LLM_MAX_TOKENS", "16384"))
 
     llm_config: dict[str, Any] = {"model": llm_model}
@@ -71,18 +73,37 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
             llm_config["api_key"] = token
     elif llm_provider == "ollama":
         llm_config["ollama_base_url"] = _resolve_ollama_url("MEM0_LLM_URL")
+    elif llm_provider == "openai":
+        llm_config["max_tokens"] = llm_max_tokens
+        openai_base_url = opt_env("MEM0_LLM_URL")
+        if openai_base_url:
+            llm_config["openai_base_url"] = openai_base_url
+        llm_config["api_key"] = opt_env("MEM0_OPENAI_API_KEY") or "not-needed"
 
     # --- Embedder ---
+    _supported_embed_providers = ("ollama", "openai")
     embed_provider = env("MEM0_EMBED_PROVIDER", "ollama")
-    embed_model = env("MEM0_EMBED_MODEL", "bge-m3")
+    if embed_provider not in _supported_embed_providers:
+        raise ValueError(
+            f"Unsupported MEM0_EMBED_PROVIDER={embed_provider!r}. "
+            f"Supported: {list(_supported_embed_providers)}"
+        )
+    _embed_model_defaults = {"ollama": "bge-m3", "openai": "text-embedding-3-small"}
+    _embed_dims_defaults = {"ollama": 1024, "openai": 1536}
+    embed_model = env("MEM0_EMBED_MODEL", _embed_model_defaults[embed_provider])
     embed_url = _resolve_ollama_url("MEM0_EMBED_URL")
-    embed_dims = int(env("MEM0_EMBED_DIMS", "1024"))
+    embed_dims = int(env("MEM0_EMBED_DIMS", str(_embed_dims_defaults[embed_provider])))
 
     embedder_config: dict[str, Any] = {
         "model": embed_model,
     }
     if embed_provider == "ollama":
         embedder_config["ollama_base_url"] = embed_url
+    elif embed_provider == "openai":
+        openai_embed_url = opt_env("MEM0_EMBED_URL") or opt_env("MEM0_LLM_URL")
+        if openai_embed_url:
+            embedder_config["openai_base_url"] = openai_embed_url
+        embedder_config["api_key"] = opt_env("MEM0_OPENAI_API_KEY") or "not-needed"
 
     # --- Vector Store ---
     qdrant_url = env("MEM0_QDRANT_URL", "http://localhost:6333")
@@ -183,6 +204,12 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
             if token:
                 graph_llm_config["api_key"] = token
             graph_llm_config["max_tokens"] = llm_max_tokens
+        elif graph_llm_provider == "openai":
+            graph_llm_config["max_tokens"] = llm_max_tokens
+            openai_graph_url = opt_env("MEM0_GRAPH_LLM_URL") or opt_env("MEM0_LLM_URL")
+            if openai_graph_url:
+                graph_llm_config["openai_base_url"] = openai_graph_url
+            graph_llm_config["api_key"] = opt_env("MEM0_OPENAI_API_KEY") or "not-needed"
         elif graph_llm_provider == "gemini":
             # Use mem0ai's built-in GeminiLLM provider
             # Default to flash-lite (not the main Claude model) when no explicit model set
@@ -225,6 +252,21 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
             "class_path": "mem0_mcp_selfhosted.llm_ollama.OllamaToolLLM",
         },
     ]
+    # Register OpenAI-compat provider when openai is used anywhere — overrides
+    # mem0ai's built-in OpenAILLM to strip unsupported json_object response_format
+    # (LM Studio / vLLM / llama.cpp only accept json_schema or text).
+    _needs_openai_compat = (
+        llm_provider == "openai"
+        or (enable_graph and graph_llm_provider_raw == "openai")
+        or (enable_graph and graph_llm_provider_raw == "gemini_split"
+            and env("MEM0_GRAPH_CONTRADICTION_LLM_PROVIDER", "anthropic") == "openai")
+    )
+    if _needs_openai_compat:
+        providers_info.append({
+            "name": "openai",
+            "class_path": "mem0_mcp_selfhosted.llm_openai_compat.OpenAICompatLLM",
+        })
+
     # Register Anthropic when used as main LLM, graph LLM, or contradiction LLM
     contradiction_provider = env(
         "MEM0_GRAPH_CONTRADICTION_LLM_PROVIDER", "anthropic"
@@ -275,5 +317,10 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
             split_config["contradiction_ollama_base_url"] = _resolve_ollama_url(
                 "MEM0_GRAPH_LLM_URL", "MEM0_LLM_URL"
             )
+        elif contradiction_provider == "openai":
+            openai_contra_url = opt_env("MEM0_GRAPH_LLM_URL") or opt_env("MEM0_LLM_URL")
+            if openai_contra_url:
+                split_config["contradiction_openai_base_url"] = openai_contra_url
+            split_config["contradiction_api_key"] = opt_env("MEM0_OPENAI_API_KEY") or "not-needed"
 
     return config_dict, providers_info, split_config

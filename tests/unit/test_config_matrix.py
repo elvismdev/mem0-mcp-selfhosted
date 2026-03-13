@@ -65,7 +65,7 @@ class TestProviderMatrix:
             monkeypatch.setenv(k, v)
         # Clean up env vars not in this combination
         for key in ("MEM0_LLM_MODEL", "MEM0_GRAPH_LLM_MODEL", "MEM0_LLM_URL",
-                     "MEM0_GRAPH_LLM_URL"):
+                     "MEM0_GRAPH_LLM_URL", "MEM0_EMBED_PROVIDER", "MEM0_OPENAI_API_KEY"):
             monkeypatch.delenv(key, raising=False)
 
         config_dict, providers_info, split_config = build_config()

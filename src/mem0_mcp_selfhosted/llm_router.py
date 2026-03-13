@@ -51,6 +51,7 @@ class SplitModelGraphLLMConfig(BaseLlmConfig):
         contradiction_api_key: str | None = None,
         contradiction_max_tokens: int = 16384,
         contradiction_ollama_base_url: str | None = None,
+        contradiction_openai_base_url: str | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -62,6 +63,7 @@ class SplitModelGraphLLMConfig(BaseLlmConfig):
         self.contradiction_api_key = contradiction_api_key
         self.contradiction_max_tokens = contradiction_max_tokens
         self.contradiction_ollama_base_url = contradiction_ollama_base_url
+        self.contradiction_openai_base_url = contradiction_openai_base_url
 
 
 class SplitModelGraphLLM(LLMBase):
@@ -100,6 +102,8 @@ class SplitModelGraphLLM(LLMBase):
             contradiction_config["api_key"] = self.config.contradiction_api_key
         if self.config.contradiction_ollama_base_url:
             contradiction_config["ollama_base_url"] = self.config.contradiction_ollama_base_url
+        if self.config.contradiction_openai_base_url:
+            contradiction_config["openai_base_url"] = self.config.contradiction_openai_base_url
 
         self.extraction_llm = LlmFactory.create(
             self.config.extraction_provider, extraction_config
