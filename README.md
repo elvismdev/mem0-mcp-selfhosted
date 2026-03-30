@@ -79,6 +79,10 @@ Restart Claude Code, then:
 > Show me all entities in my knowledge graph
 ```
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/elvismdev-mem0-mcp-selfhosted).
+
 ## CLAUDE.md Integration
 
 Add these rules to your project's `CLAUDE.md` (or `~/.claude/CLAUDE.md` for global use) so Claude Code proactively uses memory tools throughout the session:
