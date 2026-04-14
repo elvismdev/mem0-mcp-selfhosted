@@ -13,11 +13,11 @@ authors = [
 ]
 dependencies = [
     "mcp[cli]>=1.23.0",
-    "mem0ai[graph,llms]>=1.0.3",
+    "mem0ai>=1.0.3",
     "anthropic>=0.77.0",
-    "neo4j>=5.23.1",
     "python-dotenv>=1.2.1",
 ]
+
 
 [project.scripts]
 mem0-mcp-selfhosted = "mem0_mcp_selfhosted:main"
@@ -29,6 +29,10 @@ mem0-install-hooks = "mem0_mcp_selfhosted.hooks:install_main"
 packages = ["src/mem0_mcp_selfhosted"]
 
 [project.optional-dependencies]
+graph = [
+    "mem0ai[graph,llms]>=1.0.3",
+    "neo4j>=5.23.1",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
