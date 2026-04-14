@@ -144,6 +144,8 @@ class OllamaToolLLM(OllamaLLM):
           1. /no_think injection (before API call)
           2. temperature=0, repeat_penalty=1.0 for structured requests (in options)
           3. keep_alive parameter (in API call)
+         3b. Explicit ``think`` API parameter (Ollama ≥0.9.0) — definitive
+              control; silently ignored by non-thinking models
           4. Think-tag stripping (in _parse_response)
           5. extract_json() (after _parse_response, JSON-mode only)
           6. Single retry on empty/invalid JSON (wraps the pipeline)
@@ -196,7 +198,25 @@ class OllamaToolLLM(OllamaLLM):
 
         # Layer 3: keep_alive
         keep_alive = env("MEM0_OLLAMA_KEEP_ALIVE", "30m")
+        # Env vars are always strings, but Ollama's Go duration parser
+        # rejects numeric strings like "-1" or "300" — they must be sent as
+        # ints. Coerce numeric strings; pass duration strings ("30m", "1h")
+        # through unchanged. Without this, setting MEM0_OLLAMA_KEEP_ALIVE=-1
+        # (to keep a model resident forever) breaks every call with
+        # `ResponseError: time: missing unit in duration "-1"`.
+        try:
+            keep_alive = int(keep_alive)
+        except (ValueError, TypeError):
+            pass
         params["keep_alive"] = keep_alive
+
+        # Layer 3b: Explicit thinking control via Ollama API (requires v0.9.0+).
+        # The /no_think text injection (Layer 1) is unreliable as a sole
+        # mechanism — thinking models may still produce thinking tokens that
+        # consume the num_predict budget and return empty content.  The API
+        # parameter is definitive.  For non-thinking models (llama3, mistral,
+        # gemma, …) the parameter is silently ignored by Ollama.
+        params["think"] = think_enabled
 
         # Pass tools to Ollama (restored from upstream PR #3241)
         if has_tools:
