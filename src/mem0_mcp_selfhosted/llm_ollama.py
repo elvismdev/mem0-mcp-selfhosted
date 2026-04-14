@@ -198,6 +198,16 @@ class OllamaToolLLM(OllamaLLM):
 
         # Layer 3: keep_alive
         keep_alive = env("MEM0_OLLAMA_KEEP_ALIVE", "30m")
+        # Env vars are always strings, but Ollama's Go duration parser
+        # rejects numeric strings like "-1" or "300" — they must be sent as
+        # ints. Coerce numeric strings; pass duration strings ("30m", "1h")
+        # through unchanged. Without this, setting MEM0_OLLAMA_KEEP_ALIVE=-1
+        # (to keep a model resident forever) breaks every call with
+        # `ResponseError: time: missing unit in duration "-1"`.
+        try:
+            keep_alive = int(keep_alive)
+        except (ValueError, TypeError):
+            pass
         params["keep_alive"] = keep_alive
 
         # Layer 3b: Explicit thinking control via Ollama API (requires v0.9.0+).
