@@ -120,10 +120,7 @@ class TestSearchMemories:
         )
         _, kwargs = mem.search.call_args
         assert kwargs["query"] == "python preferences"
-        assert kwargs["user_id"] == "bob"
-        assert kwargs["agent_id"] == "agent-1"
-        assert kwargs["run_id"] == "run-1"
-        assert kwargs["filters"] == {"key": {"eq": "val"}}
+        assert kwargs["filters"] == {"user_id": "bob", "agent_id": "agent-1", "run_id": "run-1", "key": {"eq": "val"}}
         assert kwargs["limit"] == 5
         assert kwargs["threshold"] == 0.8
         assert kwargs["rerank"] is True
@@ -135,7 +132,7 @@ class TestGetMemories:
         fn = _get_tool_fn(srv, "get_memories")
         fn(user_id="alice", agent_id="agent-1", run_id="run-1", limit=10)
         mem.get_all.assert_called_once_with(
-            user_id="alice", agent_id="agent-1", run_id="run-1", limit=10
+            filters={"user_id": "alice", "agent_id": "agent-1", "run_id": "run-1"}, limit=10
         )
 
 

@@ -340,8 +340,16 @@ class AnthropicOATLLM(LLMBase):
         raise last_exc  # type: ignore[misc]
 
     def _supports_structured_output(self) -> bool:
-        """Check if the configured model supports structured outputs."""
-        return self.config.model.startswith(_STRUCTURED_OUTPUT_PREFIXES)
+        """Check if the configured model supports structured outputs.
+
+        DISABLED — the hardcoded FACT_RETRIEVAL_SCHEMA / MEMORY_UPDATE_SCHEMA
+        are the v1 response shape, but mem0ai v2 expects a different shape
+        driven by its (much larger) system prompt. Forcing the old schema
+        makes Claude return data mem0 v2 can't parse, silently dropping
+        every add_memory call. Letting the system prompt drive the output
+        format instead; extract_json() cleans up the response.
+        """
+        return False
 
     def _select_schema(self, messages: list[dict]) -> dict:
         """Select structured output schema based on call type.
