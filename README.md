@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/elvismdev-mem0-mcp-selfhosted-badge.png)](https://mseep.ai/app/elvismdev-mem0-mcp-selfhosted)
+
 # mem0-mcp-selfhosted
 
 <a href="https://glama.ai/mcp/servers/elvismdev/mem0-mcp-selfhosted"><img width="380" height="200" src="https://glama.ai/mcp/servers/elvismdev/mem0-mcp-selfhosted/badge?v=1" alt="mem0-mcp-selfhosted MCP server" /></a>
