@@ -46,9 +46,17 @@ OAT_HEADERS = {
 FACT_RETRIEVAL_SCHEMA = {
     "type": "object",
     "properties": {
-        "facts": {"type": "array", "items": {"type": "string"}},
+        "memory": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+                "required": ["text"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["facts"],
+    "required": ["memory"],
     "additionalProperties": False,
 }
 
