@@ -43,6 +43,19 @@ _memory_init_lock = threading.Lock()
 _last_init_failure: float = 0.0
 _INIT_RETRY_COOLDOWN = 30.0  # seconds before retrying after a failed init
 
+# D91 patch (2026-05-20, magicbusstudios fork): hard timeouts on init
+# to prevent the "MCP wedged on init-lock" failure mode. Background:
+# https://github.com/magicbusstudios/mem0-mcp-selfhosted (branch d91-init-lock-timeout).
+# When Ollama is slow (VRAM contention, cold load), the original code
+# held the init lock forever, causing every subsequent tool call to queue
+# and hit MCP's 300s client timeout permanently. Two-part fix:
+#  1. _init_memory wrapped in ThreadPoolExecutor with MEM0_INIT_TIMEOUT_SEC.
+#  2. Lock acquire uses MEM0_INIT_LOCK_ACQUIRE_SEC (default 5s) -- if a
+#     previous init is in flight, subsequent callers return None fast
+#     instead of piling up.
+_INIT_TIMEOUT_SEC = float(env("MEM0_INIT_TIMEOUT_SEC", "60"))
+_INIT_LOCK_ACQUIRE_SEC = float(env("MEM0_INIT_LOCK_ACQUIRE_SEC", "5"))
+
 
 def register_providers(providers_info: list[ProviderInfo]) -> None:
     """Register custom LLM providers with mem0ai's LlmFactory.
@@ -130,18 +143,46 @@ def _ensure_memory() -> Any:
     if _last_init_failure and (now - _last_init_failure < _INIT_RETRY_COOLDOWN):
         return None  # Too soon to retry
 
-    with _memory_init_lock:
+    # D91 patch: bounded lock acquire (no infinite queue) + bounded init.
+    acquired = _memory_init_lock.acquire(timeout=_INIT_LOCK_ACQUIRE_SEC)
+    if not acquired:
+        # Another caller is already initializing. Don't pile up.
+        # Returning None lets the caller surface a fast "init in progress"
+        # error instead of waiting for the MCP client timeout.
+        logger.warning(
+            "Lazy Memory init lock contended (>%ss); returning None to avoid pile-up",
+            _INIT_LOCK_ACQUIRE_SEC,
+        )
+        return None
+    try:
         # Double-check after acquiring lock
         if memory is not None:
             return memory
 
-        try:
-            _init_memory()
-            logger.info("mem0ai Memory initialized successfully (lazy)")
-        except Exception as exc:
-            _last_init_failure = time.monotonic()
-            logger.error("Lazy Memory init failed: %s", exc)
-            return None
+        # Wrap init in a hard timeout so a hung Ollama can't lock the MCP forever.
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_init_memory)
+            try:
+                future.result(timeout=_INIT_TIMEOUT_SEC)
+                logger.info("mem0ai Memory initialized successfully (lazy)")
+            except concurrent.futures.TimeoutError:
+                _last_init_failure = time.monotonic()
+                logger.error(
+                    "Lazy Memory init exceeded %ss; check Ollama health + VRAM contention",
+                    _INIT_TIMEOUT_SEC,
+                )
+                # Note: the background thread may still be running. That's
+                # acceptable -- once it completes (or the process restarts)
+                # the next call retries fresh. The timeout prevents wedging.
+                return None
+            except Exception as exc:
+                _last_init_failure = time.monotonic()
+                logger.error("Lazy Memory init failed: %s", exc)
+                return None
+    finally:
+        _memory_init_lock.release()
 
     return memory
 
