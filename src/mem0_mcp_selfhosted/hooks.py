@@ -201,10 +201,15 @@ def _read_recent_messages(transcript_path: str) -> list[tuple[str, str]]:
             except json.JSONDecodeError:
                 continue
 
-            role = entry.get("role", "")
+            # Claude Code wraps each transcript entry as
+            #   {"type": "user"|"assistant", "message": {"role": ..., "content": ...}, ...}
+            # so role/content live under "message", not at the top level.
+            # Fall back to the top level for any flat-format transcripts.
+            msg = entry["message"] if isinstance(entry.get("message"), dict) else entry
+            role = msg.get("role", "")
             if role not in ("user", "assistant"):
                 continue
-            content = _extract_content(entry.get("content", ""))[:_MAX_CONTENT_LEN]
+            content = _extract_content(msg.get("content", ""))[:_MAX_CONTENT_LEN]
             if content:
                 messages.append((role, content))
 
