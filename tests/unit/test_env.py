@@ -99,3 +99,46 @@ class TestBoolEnv:
     def test_whitespace_only_is_false(self):
         with patch.dict(os.environ, {"TEST_KEY": "  \n"}):
             assert bool_env("TEST_KEY") is False
+
+
+class TestPromptEnv:
+    """Tests for prompt_env() — inline prompt vars with _FILE companions."""
+
+    def test_inline_value(self):
+        with patch.dict(os.environ, {"TEST_PROMPT": "Extract technical facts."}):
+            from mem0_mcp_selfhosted.env import prompt_env
+
+            assert prompt_env("TEST_PROMPT") == "Extract technical facts."
+
+    def test_absent_returns_none(self):
+        with patch.dict(os.environ, {}, clear=True):
+            from mem0_mcp_selfhosted.env import prompt_env
+
+            assert prompt_env("TEST_PROMPT") is None
+
+    def test_file_variant(self, tmp_path):
+        prompt_file = tmp_path / "prompt.txt"
+        prompt_file.write_text("Line one.\nLine two.\n", encoding="utf-8")
+        with patch.dict(os.environ, {"TEST_PROMPT_FILE": str(prompt_file)}, clear=True):
+            from mem0_mcp_selfhosted.env import prompt_env
+
+            assert prompt_env("TEST_PROMPT") == "Line one.\nLine two."
+
+    def test_inline_wins_over_file(self, tmp_path):
+        prompt_file = tmp_path / "prompt.txt"
+        prompt_file.write_text("from file", encoding="utf-8")
+        env_vars = {"TEST_PROMPT": "inline", "TEST_PROMPT_FILE": str(prompt_file)}
+        with patch.dict(os.environ, env_vars, clear=True):
+            from mem0_mcp_selfhosted.env import prompt_env
+
+            assert prompt_env("TEST_PROMPT") == "inline"
+
+    def test_missing_file_raises(self):
+        with patch.dict(os.environ, {"TEST_PROMPT_FILE": "/nonexistent/prompt.txt"}, clear=True):
+            from mem0_mcp_selfhosted.env import prompt_env
+
+            try:
+                prompt_env("TEST_PROMPT")
+                raise AssertionError("expected OSError")
+            except OSError:
+                pass

@@ -230,6 +230,18 @@ All configuration is via environment variables. Create a `.env` file or set them
 | `MEM0_OLLAMA_KEEP_ALIVE` | `30m` | How long Ollama keeps the model in VRAM between calls (e.g., `1h`, `5m`). Prevents model unload during multi-call graph pipelines |
 | `MEM0_OLLAMA_THINK` | `false` | Set to `true` to re-enable qwen3 thinking mode (disabled by default to prevent `<think>` + `format:"json"` collision) |
 
+### Custom Prompts
+
+mem0ai's default fact-extraction prompt is a "Personal Information Organizer" tuned for personal preferences and biographical details. For technical or project content it typically returns `{"facts": []}`, so `add` with `infer=true` reports success but stores **nothing**. Override the prompts to fit your domain:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MEM0_CUSTOM_FACT_EXTRACTION_PROMPT` | _(mem0ai default)_ | Replaces the fact-extraction prompt used by `add` with `infer=true`. Must instruct the model to return JSON of the form `{"facts": ["..."]}` |
+| `MEM0_CUSTOM_UPDATE_MEMORY_PROMPT` | _(mem0ai default)_ | Replaces the memory-reconciliation (ADD/UPDATE/DELETE/NONE) prompt |
+| `MEM0_GRAPH_CUSTOM_PROMPT` | _(none)_ | Extra instruction injected into the graph entity-extraction prompt (e.g., "Extract software systems, services, and tools as entities"). Only used when `MEM0_ENABLE_GRAPH=true` |
+
+Each variable has a `_FILE` companion (e.g., `MEM0_CUSTOM_FACT_EXTRACTION_PROMPT_FILE`) that reads the prompt from a UTF-8 text file — useful for long multi-line prompts that are awkward to embed in MCP client configs or docker-compose env blocks. The inline variable wins when both are set.
+
 ### Embedder
 
 | Variable | Default | Description |
