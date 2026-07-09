@@ -733,3 +733,41 @@ class TestBuildConfig:
         assert config_dict["embedder"]["config"]["ollama_base_url"] == "http://192.168.0.208:11434"
         assert config_dict["graph_store"]["llm"]["provider"] == "ollama"
         assert config_dict["graph_store"]["llm"]["config"]["ollama_base_url"] == "http://192.168.0.208:11434"
+
+    # --- Custom prompts (15.x) ---
+
+    def test_no_custom_prompts_by_default(self):
+        config_dict, *_ = self._build_with_env({"MEM0_ENABLE_GRAPH": "true"})
+        assert "custom_fact_extraction_prompt" not in config_dict
+        assert "custom_update_memory_prompt" not in config_dict
+        assert "custom_prompt" not in config_dict["graph_store"]
+
+    def test_custom_fact_extraction_prompt(self):
+        env = {"MEM0_CUSTOM_FACT_EXTRACTION_PROMPT": "Extract technical and project facts."}
+        config_dict, *_ = self._build_with_env(env)
+        assert config_dict["custom_fact_extraction_prompt"] == "Extract technical and project facts."
+
+    def test_custom_update_memory_prompt(self):
+        env = {"MEM0_CUSTOM_UPDATE_MEMORY_PROMPT": "Compare and reconcile memories."}
+        config_dict, *_ = self._build_with_env(env)
+        assert config_dict["custom_update_memory_prompt"] == "Compare and reconcile memories."
+
+    def test_graph_custom_prompt(self):
+        env = {
+            "MEM0_ENABLE_GRAPH": "true",
+            "MEM0_GRAPH_CUSTOM_PROMPT": "Extract software systems and tools as entities.",
+        }
+        config_dict, *_ = self._build_with_env(env)
+        assert config_dict["graph_store"]["custom_prompt"] == "Extract software systems and tools as entities."
+
+    def test_graph_custom_prompt_ignored_without_graph(self):
+        env = {"MEM0_GRAPH_CUSTOM_PROMPT": "Extract entities."}
+        config_dict, *_ = self._build_with_env(env)
+        assert "graph_store" not in config_dict
+
+    def test_fact_extraction_prompt_from_file(self, tmp_path):
+        prompt_file = tmp_path / "fact_prompt.txt"
+        prompt_file.write_text("Extract facts about infrastructure.\n", encoding="utf-8")
+        env = {"MEM0_CUSTOM_FACT_EXTRACTION_PROMPT_FILE": str(prompt_file)}
+        config_dict, *_ = self._build_with_env(env)
+        assert config_dict["custom_fact_extraction_prompt"] == "Extract facts about infrastructure."

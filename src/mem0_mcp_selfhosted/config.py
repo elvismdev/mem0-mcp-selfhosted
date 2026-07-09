@@ -10,7 +10,7 @@ import os
 from typing import Any, TypedDict
 
 from mem0_mcp_selfhosted.auth import resolve_token
-from mem0_mcp_selfhosted.env import bool_env, env, opt_env
+from mem0_mcp_selfhosted.env import bool_env, env, opt_env, prompt_env
 
 
 class ProviderInfo(TypedDict):
@@ -117,6 +117,15 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
     # --- History ---
     history_db_path = opt_env("MEM0_HISTORY_DB_PATH")
 
+    # --- Custom prompts ---
+    # mem0ai's default fact-extraction prompt ("Personal Information
+    # Organizer") returns {"facts": []} for technical/project content, so
+    # infer=true silently stores nothing. These overrides let deployments
+    # tailor extraction to their domain. Each var has a _FILE companion
+    # (see prompt_env) for multi-line prompts.
+    custom_fact_extraction_prompt = prompt_env("MEM0_CUSTOM_FACT_EXTRACTION_PROMPT")
+    custom_update_memory_prompt = prompt_env("MEM0_CUSTOM_UPDATE_MEMORY_PROMPT")
+
     # --- Build config dict ---
     config_dict: dict[str, Any] = {
         "llm": {
@@ -136,6 +145,11 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
 
     if history_db_path:
         config_dict["history_db_path"] = history_db_path
+
+    if custom_fact_extraction_prompt:
+        config_dict["custom_fact_extraction_prompt"] = custom_fact_extraction_prompt
+    if custom_update_memory_prompt:
+        config_dict["custom_update_memory_prompt"] = custom_update_memory_prompt
 
     # --- Graph Store (conditional) ---
     enable_graph = bool_env("MEM0_ENABLE_GRAPH")
@@ -214,6 +228,13 @@ def build_config() -> tuple[dict[str, Any], list[ProviderInfo], dict[str, Any] |
                 "config": graph_llm_config,
             },
         }
+
+        # Custom entity-extraction prompt — mem0ai injects it as an extra
+        # numbered instruction into the graph extraction system prompt
+        # (GraphStoreConfig.custom_prompt).
+        graph_custom_prompt = prompt_env("MEM0_GRAPH_CUSTOM_PROMPT")
+        if graph_custom_prompt:
+            config_dict["graph_store"]["custom_prompt"] = graph_custom_prompt
 
     # --- Provider registration info ---
     # Always register custom Ollama provider — strict superset of upstream
