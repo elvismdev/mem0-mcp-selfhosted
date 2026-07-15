@@ -235,13 +235,15 @@ def _register_tools(mcp: FastMCP) -> None:
         """Semantic search across existing memories."""
         uid = user_id or get_default_user_id()
 
-        kwargs: dict[str, Any] = {"user_id": uid, "query": query}
+        search_filters: dict[str, Any] = {"user_id": uid}
         if agent_id:
-            kwargs["agent_id"] = agent_id
+            search_filters["agent_id"] = agent_id
         if run_id:
-            kwargs["run_id"] = run_id
+            search_filters["run_id"] = run_id
         if filters:
-            kwargs["filters"] = filters
+            search_filters.update(filters)
+
+        kwargs: dict[str, Any] = {"query": query, "filters": search_filters}
         if limit is not None:
             kwargs["limit"] = limit
         if threshold is not None:
@@ -266,11 +268,13 @@ def _register_tools(mcp: FastMCP) -> None:
         """Page through memories using filters instead of search."""
         uid = user_id or get_default_user_id()
 
-        kwargs: dict[str, Any] = {"user_id": uid}
+        all_filters: dict[str, Any] = {"user_id": uid}
         if agent_id:
-            kwargs["agent_id"] = agent_id
+            all_filters["agent_id"] = agent_id
         if run_id:
-            kwargs["run_id"] = run_id
+            all_filters["run_id"] = run_id
+
+        kwargs: dict[str, Any] = {"filters": all_filters}
         if limit is not None:
             kwargs["limit"] = limit
 
